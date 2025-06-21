@@ -1,7 +1,8 @@
 class MainActivity : AppCompatActivity() {
+
     private lateinit var urlInput: EditText
-    private lateinit var downloadBtn: Button
-    private lateinit var formatsList: RecyclerView
+    private lateinit var fetchBtn: Button
+    private lateinit var recycler: RecyclerView
     private val api = ApiClient.create()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -9,30 +10,42 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         urlInput = findViewById(R.id.url_input)
-        downloadBtn = findViewById(R.id.btn_fetch)
-        formatsList = findViewById(R.id.recycler_formats)
-        formatsList.layoutManager = LinearLayoutManager(this)
+        fetchBtn = findViewById(R.id.btn_fetch)
+        recycler = findViewById(R.id.recycler_formats)
+        recycler.layoutManager = LinearLayoutManager(this)
 
-        downloadBtn.setOnClickListener {
-            val url = urlInput.text.toString()
-            if (url.isEmpty()) return@setOnClickListener
+        fetchBtn.setOnClickListener {
+            val url = urlInput.text.toString().trim()
+            if (url.isEmpty()) {
+                Toast.makeText(this, "Pega un enlace válido", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
             lifecycleScope.launch {
-                val formats = api.getFormats(mapOf("url" to url))
-                formatsList.adapter = FormatAdapter(formats) { selected ->
-                    download(selected.format_id, url)
+                try {
+                    val formats = api.getFormats(mapOf("url" to url))
+                    recycler.adapter = FormatAdapter(formats) { format ->
+                        download(format.format_id, url)
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(this@MainActivity, "Error al obtener formatos", Toast.LENGTH_LONG).show()
                 }
             }
         }
     }
 
-    private fun download(formatId: String, url: String) {
+    private fun download(formatId: String, videoUrl: String) {
         lifecycleScope.launch {
-            val body = api.download(mapOf("url" to url, "format_id" to formatId))
-            val file = File(getExternalFilesDir(null), "video_${System.currentTimeMillis()}.mp4")
-            file.outputStream().use { output ->
-                body.byteStream().copyTo(output)
+            try {
+                val response = api.download(mapOf("url" to videoUrl, "format_id" to formatId))
+                val file = File(getExternalFilesDir(null), "video_${System.currentTimeMillis()}.mp4")
+                file.outputStream().use { output ->
+                    response.byteStream().copyTo(output)
+                }
+                Toast.makeText(this@MainActivity, "Descarga completada: ${file.name}", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(this@MainActivity, "Error al descargar", Toast.LENGTH_LONG).show()
             }
-            Toast.makeText(this@MainActivity, "Descarga completada", Toast.LENGTH_SHORT).show()
         }
     }
 }
